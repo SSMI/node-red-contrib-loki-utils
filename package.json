@@ -1,5 +1,5 @@
 {
-  "name": "node-red-contrib-loki",
+  "name": "node-red-contrib-loki-utils",
   "version": "1.0.0",
   "description": "Node-RED nodes for Grafana Loki — AI generated, provided as-is without ongoing maintenance",
   "keywords": ["node-red", "loki", "grafana", "logs", "logql", "no-maintenance-intended"],
