@@ -1,0 +1,31 @@
+{
+  "name": "node-red-contrib-loki",
+  "version": "1.0.0",
+  "description": "Node-RED nodes for Grafana Loki — AI generated, provided as-is without ongoing maintenance",
+  "keywords": ["node-red", "loki", "grafana", "logs", "logql", "no-maintenance-intended"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SSMI/node-red-contrib-loki-utils.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SSMI/node-red-contrib-loki-utils/issues"
+  },
+  "homepage": "https://github.com/SSMI/node-red-contrib-loki-utils#readme",
+  "node-red": {
+    "version": ">=2.0.0",
+    "nodes": {
+      "loki-config": "loki-config.js",
+      "loki-query":  "loki-query.js",
+      "loki-watch":  "loki-watch.js",
+      "loki-tail":   "loki-tail.js",
+      "loki-labels": "loki-labels.js",
+      "loki-ready":  "loki-ready.js",
+      "loki-clean":  "loki-clean.js"
+    }
+  },
+  "dependencies": {
+    "ws": ">=8.0.0"
+  },
+  "engines": { "node": ">=16.0.0" },
+  "license": "MIT"
+}

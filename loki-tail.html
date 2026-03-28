@@ -1,0 +1,134 @@
+<script type="text/javascript">
+    RED.nodes.registerType('loki-tail', {
+        category: 'storage',
+        color: '#F5A623',
+        defaults: {
+            name:        { value: '' },
+            server:      { value: '', type: 'loki-config', required: true },
+            query:       { value: '', required: true },
+            output:      { value: 'each' },
+            reconnectMs: { value: 5000, validate: RED.validators.number() },
+        },
+        inputs:  1,
+        outputs: 1,
+        icon: 'feed.svg',
+        label: function () { return this.name || ('tail: ' + (this.query || 'loki')); },
+        labelStyle: function () { return this.name ? 'node_label_italic' : ''; },
+        paletteLabel: 'loki tail',
+    });
+</script>
+
+<script type="text/html" data-template-name="loki-tail">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name (optional)">
+    </div>
+    <div class="form-row">
+        <label for="node-input-server"><i class="fa fa-server"></i> Server</label>
+        <input type="text" id="node-input-server">
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-query"><i class="fa fa-search"></i> LogQL Query</label>
+        <input type="text" id="node-input-query" placeholder='{app="myapp"} |= "error"' style="width:70%">
+    </div>
+    <div class="form-row">
+        <label for="node-input-output"><i class="fa fa-code"></i> Emit</label>
+        <select id="node-input-output" style="width:220px">
+            <option value="each">One message per log line</option>
+            <option value="lines">One message per batch (array)</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-reconnectMs"><i class="fa fa-refresh"></i> Reconnect after</label>
+        <input type="number" id="node-input-reconnectMs" min="1000" step="1000" style="width:90px"> ms
+    </div>
+    <div class="form-tips">
+        Requires the <code>ws</code> npm package — see help panel.
+    </div>
+</script>
+
+<script type="text/html" data-help-name="loki-tail">
+    <p>Streams log lines from Grafana Loki in real time using the
+    <code>/loki/api/v1/tail</code> WebSocket endpoint. Logs are delivered the
+    instant they are ingested. Automatically reconnects on disconnect.</p>
+
+    <h3>Requirements</h3>
+    <pre>cd ~/.node-red && npm install ws</pre>
+    <p>Restart Node-RED after installing.</p>
+
+    <h3>loki-tail vs loki-watch</h3>
+    <p><b>loki-tail</b> — real-time WebSocket delivery, ideal when latency matters.<br><br>
+    <b>loki-watch</b> — polls on a timer, simpler, no extra dependencies, tolerant
+    of outages. Use when sub-second latency is not needed.</p>
+
+    <h3>Resource and load considerations</h3>
+    <ul>
+        <li>One persistent WebSocket connection per node.</li>
+        <li>Loki default limit: 10 simultaneous tail connections.</li>
+        <li>More resource intensive on Loki than poll queries.</li>
+        <li>Logs during a connection gap are not delivered on reconnect.</li>
+    </ul>
+
+    <h3>Control commands (msg.payload)</h3>
+    <dl class="message-properties">
+        <dt><code>"stop"</code></dt><dd>Close the WebSocket connection.</dd>
+        <dt><code>"start"</code></dt><dd>Reconnect using the current query.</dd>
+    </dl>
+
+    <h3>Runtime options via msg.lokiOptions</h3>
+    <pre>msg.lokiOptions = {
+    query:       '{app="myapp"} |= "critical"',
+    output:      'lines',   // 'each' or 'lines'
+    reconnectMs: 10000,     // plain number — milliseconds
+};</pre>
+    <p>If the query changes the connection is closed and reopened automatically.<br>
+    Mustache is supported in the <code>query</code> field:
+    <code>{app="{{payload.app}}"}</code></p>
+
+    <h3>Outputs — each mode</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">string</span></dt><dd>Raw log line text.</dd>
+        <dt>lokiTimestamp <span class="property-type">string</span></dt>
+        <dd>Nanosecond timestamp string.
+        Convert: <code>new Date(Number(msg.lokiTimestamp) / 1e6)</code></dd>
+        <dt>lokiLabels <span class="property-type">object</span></dt><dd>Stream labels.</dd>
+        <dt>lokiEntry <span class="property-type">object</span></dt>
+        <dd><code>{ timestamp, line, labels }</code></dd>
+    </dl>
+    <p>All properties from the most recent input message are preserved.</p>
+
+    <h3>Outputs — lines mode</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">array</span></dt>
+        <dd>Array of <code>{ timestamp, line, labels }</code> sorted oldest-first.</dd>
+        <dt>count <span class="property-type">number</span></dt><dd>Lines in this batch.</dd>
+    </dl>
+    <p>All properties from the most recent input message are preserved.</p>
+
+    <h3>Working with output messages</h3>
+    <p>Wire a <b>lines</b> output into a <b>Split node</b> to get one message per line.<br>
+    Wire an <b>each</b> output into a <b>Join node</b> to accumulate into an array.<br>
+    Wire into <b>loki-clean</b> to strip all loki properties.</p>
+
+    <h3>Dropped entries warning</h3>
+    <p>If Loki drops entries under heavy load a warning is logged to the debug panel.
+    Narrow your query or switch to loki-watch if this happens regularly.</p>
+
+    <h3>Status indicators</h3>
+    <ul>
+        <li><b>Yellow ring</b> — connecting or waiting to reconnect</li>
+        <li><b>Green ring</b> — connected, waiting for logs</li>
+        <li><b>Green dot</b> — logs received</li>
+        <li><b>Red dot</b> — error</li>
+        <li><b>Grey ring</b> — stopped</li>
+    </ul>
+
+    <h3>Common errors</h3>
+    <dl>
+        <dt>ws package missing</dt><dd>Run <code>cd ~/.node-red && npm install ws</code></dd>
+        <dt>Connection refused / Host not found</dt><dd>Loki unreachable. Will retry.</dd>
+        <dt>Unauthorised / Forbidden</dt><dd>Check credentials in server config.</dd>
+        <dt>Disconnected (code 1006)</dt><dd>Network issue or Loki restart. Reconnects automatically.</dd>
+    </dl>
+</script>

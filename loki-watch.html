@@ -1,0 +1,122 @@
+<script type="text/javascript">
+    RED.nodes.registerType('loki-watch', {
+        category: 'storage',
+        color: '#F5A623',
+        defaults: {
+            name:     { value: '' },
+            server:   { value: '', type: 'loki-config', required: true },
+            query:    { value: '', required: true },
+            interval: { value: 5, validate: RED.validators.number() },
+            output:   { value: 'each' },
+        },
+        inputs:  1,
+        outputs: 1,
+        icon: 'trigger.svg',
+        label: function () { return this.name || ('watch: ' + (this.query || 'loki')); },
+        labelStyle: function () { return this.name ? 'node_label_italic' : ''; },
+        paletteLabel: 'loki watch',
+    });
+</script>
+
+<script type="text/html" data-template-name="loki-watch">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name (optional)">
+    </div>
+    <div class="form-row">
+        <label for="node-input-server"><i class="fa fa-server"></i> Server</label>
+        <input type="text" id="node-input-server">
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-query"><i class="fa fa-search"></i> LogQL Query</label>
+        <input type="text" id="node-input-query" placeholder='{app="myapp"} |= "error"' style="width:70%">
+    </div>
+    <div class="form-row">
+        <label for="node-input-interval"><i class="fa fa-clock-o"></i> Poll every</label>
+        <input type="number" id="node-input-interval" min="1" style="width:60px"> seconds
+    </div>
+    <div class="form-row">
+        <label for="node-input-output"><i class="fa fa-code"></i> Emit</label>
+        <select id="node-input-output" style="width:220px">
+            <option value="each">One message per log line</option>
+            <option value="lines">One message per poll (array)</option>
+        </select>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="loki-watch">
+    <p>Polls Grafana Loki on a fixed interval and emits messages whenever new log
+    lines arrive matching the query. Starts automatically on deploy. Only logs
+    arriving <b>after the node starts</b> are emitted — historical logs are never
+    replayed.</p>
+
+    <h3>How it works</h3>
+    <p>On start the node records the current time as a watermark. Each poll queries
+    Loki from watermark+1ns to now, then advances the watermark to the newest log
+    received. No line is ever emitted twice.</p>
+
+    <h3>loki-watch vs loki-tail</h3>
+    <p><b>loki-watch</b> — polls on a timer. Simple, reliable, tolerant of outages,
+    no extra dependencies. Latency equals the poll interval.<br><br>
+    <b>loki-tail</b> — persistent WebSocket, true real-time delivery, but requires
+    the <code>ws</code> package and consumes a Loki tail connection slot.</p>
+
+    <h3>Resource and load considerations</h3>
+    <ul>
+        <li>One HTTP request per poll interval per node. At 5s default: 12 req/min.</li>
+        <li>Zero load between polls.</li>
+        <li>Load is linear and predictable.</li>
+        <li>Tolerant of brief Loki outages — retries on next interval.</li>
+    </ul>
+
+    <h3>Control commands (msg.payload)</h3>
+    <dl class="message-properties">
+        <dt><code>"stop"</code></dt><dd>Pause polling.</dd>
+        <dt><code>"start"</code></dt><dd>Resume. Resets watermark to now.</dd>
+        <dt><code>"reset"</code></dt><dd>Reset watermark to now without stopping.</dd>
+    </dl>
+
+    <h3>Runtime options via msg.lokiOptions</h3>
+    <pre>msg.lokiOptions = {
+    query:    '{app="myapp"} |= "critical"',
+    interval: 10,      // poll interval in seconds — plain number
+    output:   'lines', // 'each' or 'lines'
+};</pre>
+    <p>Mustache is supported in the <code>query</code> field:
+    <code>{app="{{payload.app}}"}</code></p>
+
+    <h3>Outputs — each mode</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">string</span></dt><dd>Raw log line text.</dd>
+        <dt>lokiTimestamp <span class="property-type">string</span></dt>
+        <dd>Nanosecond Unix timestamp string.
+        Convert: <code>new Date(Number(msg.lokiTimestamp) / 1e6)</code></dd>
+        <dt>lokiLabels <span class="property-type">object</span></dt>
+        <dd>Stream labels, e.g. <code>{ app: "myapp", env: "prod" }</code></dd>
+        <dt>lokiEntry <span class="property-type">object</span></dt>
+        <dd><code>{ timestamp, line, labels }</code></dd>
+    </dl>
+
+    <h3>Outputs — lines mode</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">array</span></dt>
+        <dd>Array of <code>{ timestamp, line, labels }</code> sorted oldest-first.
+        Empty polls produce no message.</dd>
+        <dt>count <span class="property-type">number</span></dt><dd>New lines in this batch.</dd>
+        <dt>lokiRaw <span class="property-type">object</span></dt><dd>Full Loki API response.</dd>
+    </dl>
+
+    <h3>Working with output messages</h3>
+    <p>Wire a <b>lines</b> output into a <b>Split node</b> to get one message per line.<br>
+    Wire an <b>each</b> output into a <b>Join node</b> to accumulate into an array.<br>
+    Wire into <b>loki-clean</b> to strip all loki properties before continuing.</p>
+
+    <h3>Status indicators</h3>
+    <ul>
+        <li><b>Green ring</b> — polling, no new logs</li>
+        <li><b>Green dot</b> — new logs received (count + time)</li>
+        <li><b>Red dot</b> — poll error</li>
+        <li><b>Grey ring</b> — stopped</li>
+    </ul>
+</script>

@@ -1,0 +1,110 @@
+<script type="text/javascript">
+    RED.nodes.registerType('loki-labels', {
+        category: 'storage',
+        color: '#F5A623',
+        defaults: {
+            name:      { value: '' },
+            server:    { value: '', type: 'loki-config', required: true },
+            mode:      { value: 'labels' },
+            labelName: { value: '' },
+            lookback:  { value: '1h' },
+        },
+        inputs:  1,
+        outputs: 1,
+        icon: 'debug.svg',
+        label: function () { return this.name || 'loki labels'; },
+        labelStyle: function () { return this.name ? 'node_label_italic' : ''; },
+        paletteLabel: 'loki labels',
+        oneditprepare: function () {
+            function updateVisibility() {
+                $('#loki-label-name-row').toggle($('#node-input-mode').val() === 'values');
+            }
+            $('#node-input-mode').on('change', updateVisibility);
+            updateVisibility();
+        },
+    });
+</script>
+
+<script type="text/html" data-template-name="loki-labels">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name (optional)">
+    </div>
+    <div class="form-row">
+        <label for="node-input-server"><i class="fa fa-server"></i> Server</label>
+        <input type="text" id="node-input-server">
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-mode"><i class="fa fa-list"></i> Fetch</label>
+        <select id="node-input-mode" style="width:260px">
+            <option value="labels">Label names only</option>
+            <option value="values">Values for a label</option>
+            <option value="both">All labels + all their values</option>
+        </select>
+    </div>
+    <div class="form-row" id="loki-label-name-row">
+        <label for="node-input-labelName"><i class="fa fa-key"></i> Label name</label>
+        <input type="text" id="node-input-labelName"
+               placeholder="e.g. app  (blank = all labels)"
+               style="width:60%">
+    </div>
+    <div class="form-row">
+        <label for="node-input-lookback"><i class="fa fa-clock-o"></i> Lookback</label>
+        <input type="text" id="node-input-lookback" placeholder="1h" style="width:80px">
+        <span style="margin-left:6px;color:#999">e.g. 30m, 1h, 24h, 7d</span>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="loki-labels">
+    <p>Fetches label names and/or label values from Grafana Loki.
+    Trigger with any incoming message.</p>
+
+    <h3>What are labels?</h3>
+    <p>Labels are key-value pairs attached to every log stream, e.g.
+    <code>{ app: "myapp", env: "prod", host: "web-01" }</code>.
+    Use this node to discover what labels are available before writing queries.</p>
+
+    <h3>Lookback window</h3>
+    <p>Loki only returns labels seen within the lookback window. Increase it
+    (e.g. <code>24h</code> or <code>7d</code>) if labels are missing.</p>
+
+    <h3>Runtime options via msg.lokiOptions</h3>
+    <pre>msg.lokiOptions = {
+    mode:      'both',   // 'labels', 'values', or 'both'
+    labelName: 'app',    // specific label for values mode (blank = all)
+    lookback:  '24h',    // how far back to look
+};</pre>
+    <p>The <code>labelName</code> field supports mustache:
+    <code>{{payload.labelName}}</code></p>
+
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>payload — labels mode <span class="property-type">string[]</span></dt>
+        <dd><pre>["app", "env", "host", "job"]</pre></dd>
+
+        <dt>payload — values mode, single label <span class="property-type">string[]</span></dt>
+        <dd><pre>["myapp", "otherapp", "worker"]</pre></dd>
+
+        <dt>payload — values (all) / both mode <span class="property-type">object</span></dt>
+        <dd><pre>{ app: ["myapp", "worker"], env: ["prod", "dev"] }</pre></dd>
+
+        <dt>lokiLabels <span class="property-type">string[]</span></dt>
+        <dd>Label names when fetched.</dd>
+
+        <dt>lokiLabelValues <span class="property-type">object</span></dt>
+        <dd>Full label→values map when values were fetched.</dd>
+    </dl>
+
+    <h3>Performance note</h3>
+    <p><b>both</b> mode makes one HTTP request per label. Use a specific
+    <code>labelName</code> in <b>values</b> mode for faster results on
+    instances with many labels.</p>
+
+    <h3>Common errors</h3>
+    <dl>
+        <dt>Connection refused / Host not found</dt><dd>Check server config URL.</dd>
+        <dt>HTTP 401 / 403</dt><dd>Check credentials in server config.</dd>
+        <dt>no labels found</dt><dd>Increase the lookback window.</dd>
+    </dl>
+</script>

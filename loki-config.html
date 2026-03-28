@@ -1,0 +1,48 @@
+<script type="text/javascript">
+    RED.nodes.registerType('loki-config', {
+        category: 'config',
+        defaults: {
+            name: { value: '' },
+            url:  { value: 'http://localhost:3100', required: true },
+        },
+        credentials: {
+            username: { type: 'text' },
+            password: { type: 'password' },
+        },
+        label: function () {
+            return this.name || this.url;
+        },
+    });
+</script>
+
+<script type="text/html" data-template-name="loki-config">
+
+    <div class="form-row">
+        <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="e.g. prod-loki">
+    </div>
+
+    <div class="form-row">
+        <label for="node-config-input-url"><i class="fa fa-globe"></i> Loki URL</label>
+        <input type="text" id="node-config-input-url" placeholder="http://localhost:3100">
+    </div>
+
+    <hr/>
+
+    <div class="form-row">
+        <label for="node-config-input-username"><i class="fa fa-user"></i> Username</label>
+        <input type="text" id="node-config-input-username" placeholder="Leave blank if unauthenticated">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-password"><i class="fa fa-lock"></i> Password</label>
+        <input type="password" id="node-config-input-password">
+    </div>
+
+</script>
+
+<script type="text/html" data-help-name="loki-config">
+    <p>Shared configuration for a Grafana Loki server. Referenced by
+       <code>loki-query</code>, <code>loki-watch</code>, and <code>loki-labels</code> nodes.</p>
+    <p>Define one config node per Loki instance (e.g. local, staging, prod) and
+       switch all dependent nodes by changing a single dropdown.</p>
+</script>

@@ -1,0 +1,84 @@
+<script type="text/javascript">
+    RED.nodes.registerType('loki-ready', {
+        category: 'storage',
+        color: '#F5A623',
+        defaults: {
+            name:      { value: '' },
+            server:    { value: '', type: 'loki-config', required: true },
+            buildInfo: { value: true },
+        },
+        inputs:  1,
+        outputs: 1,
+        icon: 'status.svg',
+        label: function () { return this.name || 'loki ready'; },
+        labelStyle: function () { return this.name ? 'node_label_italic' : ''; },
+        paletteLabel: 'loki ready',
+    });
+</script>
+
+<script type="text/html" data-template-name="loki-ready">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name (optional)">
+    </div>
+    <div class="form-row">
+        <label for="node-input-server"><i class="fa fa-server"></i> Server</label>
+        <input type="text" id="node-input-server">
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-buildInfo"><i class="fa fa-info-circle"></i> Build info</label>
+        <input type="checkbox" id="node-input-buildInfo" style="width:auto;margin-left:0">
+        <span style="margin-left:6px">Also fetch Loki version and build info</span>
+    </div>
+    <div class="form-tips">
+        Trigger with any message (e.g. Inject on a schedule) to check Loki health.
+    </div>
+</script>
+
+<script type="text/html" data-help-name="loki-ready">
+    <p>Checks whether Grafana Loki is healthy by calling <code>/ready</code> and
+    optionally <code>/loki/api/v1/status/buildinfo</code>. Always produces an
+    output message regardless of whether Loki is reachable — use a Switch node
+    on <code>msg.lokiReady</code> to branch your flow.</p>
+
+    <h3>Typical use</h3>
+    <pre>[Inject: every 60s] → [loki-ready] → [Switch: msg.lokiReady == false] → [alert]</pre>
+
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">object</span></dt>
+        <dd><pre>{
+  ready:     true,
+  status:    "ready",
+  buildInfo: { version: "2.9.4", revision: "...", branch: "HEAD",
+               buildDate: "...", goVersion: "go1.21.5" },
+  checkedAt: "2024-03-23T12:00:00.000Z"
+}</pre></dd>
+
+        <dt>lokiReady <span class="property-type">boolean</span></dt>
+        <dd><code>true</code> if Loki responded with <code>"ready"</code>.</dd>
+
+        <dt>lokiStatus <span class="property-type">string</span></dt>
+        <dd>Raw <code>/ready</code> response text or error message.</dd>
+
+        <dt>lokiBuildInfo <span class="property-type">object | null</span></dt>
+        <dd>Version and build details when enabled, <code>null</code> otherwise.</dd>
+    </dl>
+
+    <h3>Status indicators</h3>
+    <ul>
+        <li><b>Blue dot</b> — check in progress</li>
+        <li><b>Green dot</b> — ready (shows version if available)</li>
+        <li><b>Red dot</b> — not ready or unreachable (shows reason)</li>
+    </ul>
+
+    <h3>Common status messages</h3>
+    <dl>
+        <dt><code>ready</code></dt><dd>Loki is fully initialised.</dd>
+        <dt><code>Ingester not ready: waiting for Xs...</code></dt><dd>Loki still starting up.</dd>
+        <dt>Connection refused</dt><dd>Loki not running or wrong URL.</dd>
+        <dt>Host not found</dt><dd>Check server config URL.</dd>
+        <dt>Request timed out</dt><dd>Loki did not respond within 5 seconds.</dd>
+    </dl>
+</script>

@@ -1,0 +1,193 @@
+<script type="text/javascript">
+    RED.nodes.registerType('loki-query', {
+        category: 'storage',
+        color: '#F5A623',
+        defaults: {
+            name:         { value: '' },
+            server:       { value: '', type: 'loki-config', required: true },
+            query:        { value: '', required: true },
+            limit:        { value: 100, validate: RED.validators.number() },
+            direction:    { value: 'backward' },
+            output:       { value: 'lines' },
+            timeMode:     { value: 'lookback' },
+            lookback:     { value: '1h' },
+            rangeStart:   { value: '' },
+            rangeEnd:     { value: '' },
+        },
+        inputs:  1,
+        outputs: 1,
+        icon: 'db.svg',
+        label: function () { return this.name || 'loki query'; },
+        labelStyle: function () { return this.name ? 'node_label_italic' : ''; },
+        paletteLabel: 'loki query',
+        oneditprepare: function () {
+            function updateTimeRows() {
+                const mode = $('#node-input-timeMode').val();
+                $('#loki-row-lookback').toggle(mode === 'lookback');
+                $('#loki-row-range').toggle(mode === 'range');
+            }
+            $('#node-input-timeMode').on('change', updateTimeRows);
+            updateTimeRows();
+        },
+    });
+</script>
+
+<script type="text/html" data-template-name="loki-query">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name (optional)">
+    </div>
+    <div class="form-row">
+        <label for="node-input-server"><i class="fa fa-server"></i> Server</label>
+        <input type="text" id="node-input-server">
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-query"><i class="fa fa-search"></i> LogQL Query</label>
+        <input type="text" id="node-input-query" placeholder='{app="myapp"} |= "error"' style="width:70%">
+    </div>
+    <div class="form-tips" style="margin-bottom:8px">
+        Supports mustache: <code>{app="{{payload.app}}"} |= "{{payload.level}}"</code>
+    </div>
+    <div class="form-row">
+        <label for="node-input-limit"><i class="fa fa-list-ol"></i> Limit</label>
+        <input type="number" id="node-input-limit" min="1" max="5000" style="width:80px"> lines
+    </div>
+    <div class="form-row">
+        <label for="node-input-direction"><i class="fa fa-sort"></i> Direction</label>
+        <select id="node-input-direction" style="width:150px">
+            <option value="backward">Newest first</option>
+            <option value="forward">Oldest first</option>
+        </select>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-timeMode"><i class="fa fa-clock-o"></i> Time range</label>
+        <select id="node-input-timeMode" style="width:180px">
+            <option value="lookback">Lookback from now</option>
+            <option value="range">Fixed start / end</option>
+        </select>
+    </div>
+    <div class="form-row" id="loki-row-lookback">
+        <label for="node-input-lookback">&nbsp;</label>
+        <input type="text" id="node-input-lookback" placeholder="1h" style="width:80px">
+        <span style="margin-left:6px;color:#999">e.g. 15m, 1h, 24h, 7d</span>
+    </div>
+    <div id="loki-row-range">
+        <div class="form-row">
+            <label for="node-input-rangeStart"><i class="fa fa-calendar"></i> Start</label>
+            <input type="datetime-local" id="node-input-rangeStart" style="width:220px">
+        </div>
+        <div class="form-row">
+            <label for="node-input-rangeEnd"><i class="fa fa-calendar"></i> End</label>
+            <input type="datetime-local" id="node-input-rangeEnd" style="width:220px">
+        </div>
+    </div>
+    <hr/>
+    <div class="form-row">
+        <label for="node-input-output"><i class="fa fa-code"></i> Output</label>
+        <select id="node-input-output" style="width:240px">
+            <option value="lines">Array of log lines</option>
+            <option value="each">One message per line</option>
+            <option value="streams">Raw Loki streams</option>
+            <option value="raw">Full API response</option>
+        </select>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="loki-query">
+    <p>Queries Grafana Loki for log lines matching a LogQL expression and returns
+    the results when triggered by an incoming message.</p>
+
+    <h3>Getting started</h3>
+    <ol>
+        <li>Select a <b>Server</b> (create one with the pencil icon if needed)</li>
+        <li>Enter a <b>LogQL query</b>, e.g. <code>{app="myapp"}</code></li>
+        <li>Choose a <b>time range</b></li>
+        <li>Wire an <b>Inject node</b> to trigger the query</li>
+    </ol>
+
+    <h3>Mustache templates in the query field</h3>
+    <p>The query and lookback fields support <code>{{property}}</code> syntax
+    resolved against the incoming message at runtime. Dot notation is supported.</p>
+    <pre>{app="{{payload.app}}"} |= "{{payload.level}}"</pre>
+    <p>Unresolved tokens become empty strings.</p>
+
+    <h3>Runtime options via msg.lokiOptions</h3>
+    <p>Set <code>msg.lokiOptions</code> on the incoming message to override node
+    config at runtime. All fields are optional:</p>
+    <pre>msg.lokiOptions = {
+    query:     '{app="myapp"} |= "error"',
+    lookback:  '30m',     // recommended — avoids BigInt entirely
+    limit:     500,       // plain number
+    direction: 'forward', // 'forward' or 'backward'
+    output:    'each',    // 'lines', 'each', 'streams', or 'raw'
+
+    // Only needed when you require a precise time range.
+    // Must be nanosecond Unix timestamps. Use BigInt to avoid
+    // precision loss — JavaScript numbers cannot safely represent
+    // nanosecond values.
+    start: BigInt(Date.now() - 1800000) * 1_000_000n,
+    end:   BigInt(Date.now()) * 1_000_000n,
+};</pre>
+    <p><b>Tip:</b> Use <code>lookback</code> instead of <code>start</code>/<code>end</code>
+    wherever possible — it is a plain string and avoids BigInt entirely.</p>
+
+    <h3>LogQL query examples</h3>
+    <dl>
+        <dt><code>{app="myapp"}</code></dt><dd>All logs from the myapp stream</dd>
+        <dt><code>{app="myapp"} |= "error"</code></dt><dd>Lines containing "error"</dd>
+        <dt><code>{app="myapp"} != "debug"</code></dt><dd>Lines NOT containing "debug"</dd>
+        <dt><code>{app="myapp"} |~ "ERR|WARN"</code></dt><dd>Lines matching a regex</dd>
+        <dt><code>{namespace="prod"} | json | level="error"</code></dt>
+        <dd>JSON logs filtered by a parsed field</dd>
+    </dl>
+
+    <h3>Output formats</h3>
+    <dl class="message-properties">
+        <dt>lines <span class="property-type">array</span></dt>
+        <dd>Flat array sorted oldest-first. Each entry:
+        <pre>{ timestamp: "171123...", line: "log text", labels: { app: "myapp" } }</pre></dd>
+
+        <dt>each</dt>
+        <dd>One message per log line:
+        <ul>
+            <li><code>msg.payload</code> — raw log line text</li>
+            <li><code>msg.lokiTimestamp</code> — nanosecond timestamp string</li>
+            <li><code>msg.lokiLabels</code> — stream labels object</li>
+            <li><code>msg.lokiEntry</code> — full <code>{timestamp, line, labels}</code></li>
+        </ul></dd>
+
+        <dt>streams <span class="property-type">array</span></dt>
+        <dd>Raw Loki stream objects grouped by label set.</dd>
+
+        <dt>raw <span class="property-type">object</span></dt>
+        <dd>Complete Loki API response including stats.</dd>
+    </dl>
+
+    <h3>Output properties (all formats)</h3>
+    <dl class="message-properties">
+        <dt>lokiRaw <span class="property-type">object</span></dt><dd>Full Loki API response.</dd>
+        <dt>lokiResultType <span class="property-type">string</span></dt><dd>"streams" for log queries.</dd>
+        <dt>count <span class="property-type">number</span></dt><dd>Total lines returned.</dd>
+    </dl>
+
+    <h3>Working with timestamps</h3>
+    <pre>// lokiTimestamp (nanosecond string) → JavaScript Date
+const date = new Date(Number(msg.lokiTimestamp) / 1e6);</pre>
+
+    <h3>Working with output messages</h3>
+    <p>Wire a <b>lines</b> output into a <b>Split node</b> to get one message per line.<br>
+    Wire an <b>each</b> output into a <b>Join node</b> to accumulate into an array.<br>
+    Wire into <b>loki-clean</b> to strip all loki properties before continuing.</p>
+
+    <h3>Common errors</h3>
+    <dl>
+        <dt>Connection refused</dt><dd>Loki not running or wrong URL.</dd>
+        <dt>Host not found</dt><dd>Hostname cannot be resolved. Check server config.</dd>
+        <dt>Request timed out</dt><dd>Loki did not respond within 10 seconds.</dd>
+        <dt>HTTP 400</dt><dd>Invalid LogQL query syntax.</dd>
+        <dt>HTTP 401 / 403</dt><dd>Bad credentials in server config.</dd>
+        <dt>Range start must be before range end</dt><dd>Invalid fixed date range.</dd>
+    </dl>
+</script>
