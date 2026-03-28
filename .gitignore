@@ -1,3 +1,7 @@
 source-files.zip
 node_modules/
 *.log
+publish.sh
+unpack.sh
+install.sh
+.npmignore
